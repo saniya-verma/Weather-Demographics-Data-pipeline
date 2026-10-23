@@ -125,8 +125,6 @@ The script will:
 
 ### SQL scripts
 
-Replace `YOUR_PROJECT_ID` in each file with your GCP project ID, then run them in the BigQuery console in order:
-
 1. `sql/01_explore.sql` validates the schema and row count.
 2. `sql/02_top5_hottest.sql` returns the top 5 hottest countries with a population over 10 million, using `GROUP BY`, `ORDER BY` and aggregate functions.
 3. `sql/03_create_view.sql` creates `vw_hottest_large_countries`, the semantic layer used by the dashboard.
@@ -140,4 +138,4 @@ The Looker Studio report connects to `vw_hottest_large_countries` and includes:
 - A summary table of Country, Population and temperature
 - A custom theme and descriptive headers
 
-**Live dashboard:https://datastudio.google.com/reporting/d35de177-2ce8-441e-8101-616a43b68479
+Dashboard Link- https://datastudio.google.com/u/0/reporting/e636af54-0f66-436d-8cfd-0b446f2cc996/page/ePwBG
