@@ -1,0 +1,18 @@
+# Local data directory
+data/
+
+# Local virtual environment
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Environment secrets
+.env
+
+# GCP credentials
+scripts/gcp-key.json
+gcp-key.json
+*.json.key
