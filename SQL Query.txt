@@ -1,0 +1,37 @@
+SELECT *
+FROM `YOUR_PROJECT_ID.global_weather_data.current_weather_stats`
+LIMIT 10;
+
+SELECT COUNT(*) AS row_count
+FROM `YOUR_PROJECT_ID.global_weather_data.current_weather_stats`;
+
+
+SELECT
+  Country,
+  Population,
+  AVG(Temperature_C) AS avg_temperature_c,
+  AVG(Temperature_F) AS avg_temperature_f
+FROM `YOUR_PROJECT_ID.global_weather_data.current_weather_stats`
+WHERE Population > 10000000
+GROUP BY Country, Population
+ORDER BY avg_temperature_c DESC
+LIMIT 5;
+
+
+CREATE OR REPLACE VIEW `YOUR_PROJECT_ID.global_weather_data.vw_hottest_large_countries` AS
+SELECT
+  Country,
+  Population,
+  AVG(Temperature_C) AS avg_temperature_c,
+  AVG(Temperature_F) AS avg_temperature_f,
+  CASE
+    WHEN AVG(Temperature_C) < 10 THEN 'Cold'
+    WHEN AVG(Temperature_C) <= 25 THEN 'Mild'
+    ELSE 'Hot'
+  END AS Temperature_Category
+FROM `YOUR_PROJECT_ID.global_weather_data.current_weather_stats`
+WHERE Population > 10000000
+GROUP BY Country, Population
+ORDER BY avg_temperature_c DESC
+LIMIT 5;
+
