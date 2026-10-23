@@ -19,6 +19,11 @@ API_BASE = "https://api.open-meteo.com/v1/forecast"
 
 def load_population(path: str) -> pd.DataFrame:
     df = pd.read_csv(path)
+    # CSV temperature/wind values are baselines; live API values take priority
+    df = df.rename(columns={
+        "Temperature_C": "Baseline_Temperature_C",
+        "Windspeed_kmh": "Baseline_Windspeed_kmh",
+    })
     print(f"Loaded {len(df)} rows from {path}")
     return df
 
@@ -65,20 +70,25 @@ def categorize(temp_c: float) -> str:
     return "Hot"
 
 
-def clean_and_transform(pop_df: pd.DataFrame, weather_df: pd.DataFrame) -> pd.DataFrame:
 
-    merged = pd.merge(pop_df, weather_df, on="Country", how="inner")
+def clean_and_transform(pop_df: pd.DataFrame, weather_df: pd.DataFrame) -> pd.DataFrame:
+   
+    merged = pd.merge(pop_df, weather_df, on="Country", how="left")
     print(f"Merged dataset: {merged.shape[0]} rows, {merged.shape[1]} columns")
 
-
+    
     print("Null values per column:\n", merged.isnull().sum())
 
+    
+    merged["Temperature_C"] = merged["Temperature_C"].fillna(merged["Baseline_Temperature_C"])
+    merged["Windspeed_kmh"] = merged["Windspeed_kmh"].fillna(merged["Baseline_Windspeed_kmh"])
+    merged = merged.drop(columns=["Baseline_Temperature_C", "Baseline_Windspeed_kmh"])
 
+    
     merged = merged.dropna(subset=["Temperature_C", "Population"]).copy()
-
     merged["Windspeed_kmh"] = merged["Windspeed_kmh"].fillna(merged["Windspeed_kmh"].median())
 
-
+ 
     merged["Population"] = merged["Population"].astype("int64")
     merged["Temperature_C"] = merged["Temperature_C"].astype("float64")
     merged["Windspeed_kmh"] = merged["Windspeed_kmh"].astype("float64")
