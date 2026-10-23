@@ -1,0 +1,4 @@
+mkdir weather_pipeline && cd weather_pipeline
+mkdir data scripts
+touch scripts/main.py .gitignore
+git init
