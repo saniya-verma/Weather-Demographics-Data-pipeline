@@ -1,0 +1,131 @@
+import json
+import os
+import sys
+import time
+
+import pandas as pd
+import requests
+from google.cloud import bigquery
+from google.oauth2 import service_account
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath("population.csv")))
+POPULATION_CSV = os.path.join(BASE_DIR, "data", "population.csv")
+KEY_PATH = os.path.join(BASE_DIR, "scripts", "gcp-key.json")
+
+DATASET_ID = "global_weather_data"
+TABLE_ID = "current_weather_stats"
+API_BASE = "https://api.open-meteo.com/v1/forecast"
+
+
+def load_population(path: str) -> pd.DataFrame:
+    df = pd.read_csv(path)
+    print(f"Loaded {len(df)} rows from {path}")
+    return df
+
+
+def fetch_weather(location: pd.Series) -> dict | None:
+    """Call Open-Meteo for one location; return a flat dict or None on failure."""
+    api_url = (
+        f"{API_BASE}?latitude={location['Latitude']}"
+        f"&longitude={location['Longitude']}&current_weather=true"
+    )
+    try:
+        resp = requests.get(api_url, timeout=15)
+        resp.raise_for_status()
+        current = resp.json().get("current_weather", {})
+        return {
+            "Country": location["Country"],
+            "Temperature_C": current.get("temperature"),
+            "Windspeed_kmh": current.get("windspeed"),
+            "Observation_Time": current.get("time"),
+        }
+    except (requests.RequestException, ValueError) as err:
+        print(f"  [WARN] Failed for {location['City']}, {location['Country']}: {err}")
+        return None
+
+
+def collect_weather(pop_df: pd.DataFrame) -> pd.DataFrame:
+    records = []
+    for _, row in pop_df.iterrows():
+        rec = fetch_weather(row)
+        if rec:
+            records.append(rec)
+            print(f"  {row['City']}: {rec['Temperature_C']} °C, {rec['Windspeed_kmh']} km/h")
+        time.sleep(0.2)  
+    return pd.DataFrame(records)
+
+
+def categorize(temp_c: float) -> str:
+    if pd.isna(temp_c):
+        return "Unknown"
+    if temp_c < 10:
+        return "Cold"
+    if temp_c <= 25:
+        return "Mild"
+    return "Hot"
+
+
+def clean_and_transform(pop_df: pd.DataFrame, weather_df: pd.DataFrame) -> pd.DataFrame:
+
+    merged = pd.merge(pop_df, weather_df, on="Country", how="inner")
+    print(f"Merged dataset: {merged.shape[0]} rows, {merged.shape[1]} columns")
+
+
+    print("Null values per column:\n", merged.isnull().sum())
+
+
+    merged = merged.dropna(subset=["Temperature_C", "Population"]).copy()
+
+    merged["Windspeed_kmh"] = merged["Windspeed_kmh"].fillna(merged["Windspeed_kmh"].median())
+
+
+    merged["Population"] = merged["Population"].astype("int64")
+    merged["Temperature_C"] = merged["Temperature_C"].astype("float64")
+    merged["Windspeed_kmh"] = merged["Windspeed_kmh"].astype("float64")
+    merged["Latitude"] = merged["Latitude"].astype("float64")
+    merged["Longitude"] = merged["Longitude"].astype("float64")
+    merged["Observation_Time"] = pd.to_datetime(merged["Observation_Time"])
+
+
+    merged["Temperature_F"] = (merged["Temperature_C"] * 9 / 5 + 32).round(2)
+    merged["Temperature_Category"] = merged["Temperature_C"].apply(categorize)
+
+    return merged
+
+
+
+def load_to_bigquery(df: pd.DataFrame) -> None:
+    if not os.path.exists(KEY_PATH):
+        sys.exit(f"Service account key not found at {KEY_PATH}")
+
+    with open(KEY_PATH) as f:
+        project_id = json.load(f)["project_id"]
+
+    credentials = service_account.Credentials.from_service_account_file(KEY_PATH)
+    client = bigquery.Client(credentials=credentials, project=project_id)
+
+    table_ref = f"{project_id}.{DATASET_ID}.{TABLE_ID}"
+    job_config = bigquery.LoadJobConfig(
+        write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE  # replace each run
+    )
+    job = client.load_table_from_dataframe(df, table_ref, job_config=job_config)
+    job.result()
+    print(f"Loaded {job.output_rows} rows into {table_ref}")
+
+
+
+def main() -> None:
+    pop_df = load_population(POPULATION_CSV)
+    weather_df = collect_weather(pop_df)
+    final_df = clean_and_transform(pop_df, weather_df)
+
+    print("\nFinal DataFrame preview:")
+    print(final_df.head(10).to_string(index=False))
+    print("\nDtypes:\n", final_df.dtypes)
+
+
+    load_to_bigquery(final_df)
+
+
+if __name__ == "__main__":
+    main()
