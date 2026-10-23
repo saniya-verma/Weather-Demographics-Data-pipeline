@@ -138,4 +138,4 @@ The Looker Studio report connects to `vw_hottest_large_countries` and includes:
 - A summary table of Country, Population and temperature
 - A custom theme and descriptive headers
 
-Dashboard Link- https://datastudio.google.com/u/0/reporting/e636af54-0f66-436d-8cfd-0b446f2cc996/page/ePwBG
+Dashboard Link- https://datastudio.google.com/reporting/2cb71a30-d8eb-475d-b051-8c1daa150499
